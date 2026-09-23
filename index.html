@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดการข้อมูลสินค้า (Product Management System) - RESTful API</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- Google Font: Prompt -->
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .navbar-custom {
+            background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+            box-shadow: 0 4px 12px rgba(13, 110, 253, 0.2);
+        }
+
+        .card-custom {
+            border: none;
+            border-radius: 1rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+            background: #ffffff;
+        }
+
+        .table-custom th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .table-custom td {
+            vertical-align: middle;
+        }
+
+        .badge-cat {
+            background-color: #e7f1ff;
+            color: #0d6efd;
+            border: 1px solid #b6d4fe;
+            font-weight: 500;
+        }
+
+        .badge-sup {
+            background-color: #f0fdf4;
+            color: #15803d;
+            border: 1px solid #bbf7d0;
+            font-weight: 500;
+        }
+
+        .btn-action {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.5rem;
+        }
+
+        /* Toast Container */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1080;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Toast Notification -->
+    <div class="toast-container">
+        <div id="liveToast" class="toast align-items-center text-white border-0 shadow-lg rounded-3" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body d-flex align-items-center fs-6">
+                    <i id="toastIcon" class="bi bi-check-circle-fill fs-4 me-2"></i>
+                    <span id="toastMessage">ดำเนินการสำเร็จ!</span>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom py-3 mb-4">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center fw-bold fs-4" href="index.html">
+                <i class="bi bi-box-seam-fill me-2 fs-3 text-warning"></i>
+                ระบบจัดการสินค้า (Product CRUD System)
+            </a>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-light text-dark px-3 py-2 rounded-pill fw-normal shadow-sm">
+                    <i class="bi bi-cloud-check-fill me-1 text-success"></i> RESTful API Architecture
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="container pb-5">
+        <!-- Control Card: Search & Actions -->
+        <div class="card card-custom p-4 mb-4">
+            <div class="row g-3 align-items-center justify-content-between">
+                <!-- Search Input -->
+                <div class="col-12 col-md-6 col-lg-5">
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0">
+                            <i class="bi bi-search text-muted"></i>
+                        </span>
+                        <input type="text" id="searchInput" class="form-control bg-light border-start-0 ps-0" placeholder="ค้นหาตามชื่อสินค้า, หมวดหมู่, หรือผู้จัดจำหน่าย..." autocomplete="off">
+                        <button class="btn btn-outline-secondary" type="button" id="clearSearchBtn" title="ล้างคำค้นหา" style="display: none;">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats & Action Buttons -->
+                <div class="col-12 col-md-6 col-lg-6 d-flex align-items-center justify-content-md-end gap-2">
+                    <span class="text-muted me-2 small">
+                        ทั้งหมด: <strong id="totalCount" class="text-primary fs-6">-</strong> รายการ
+                    </span>
+                    <button class="btn btn-outline-primary px-3 rounded-3" id="refreshBtn" title="รีเฟรชข้อมูล">
+                        <i class="bi bi-arrow-clockwise me-1"></i>รีเฟรช
+                    </button>
+                    <button class="btn btn-success px-4 rounded-3 fw-medium shadow-sm" id="btnOpenAddModal">
+                        <i class="bi bi-plus-circle me-1"></i>เพิ่มสินค้าใหม่
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Products Table Card -->
+        <div class="card card-custom p-4">
+            <div class="table-responsive">
+                <table class="table table-hover table-custom align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 80px;">รหัส</th>
+                            <th>ชื่อสินค้า (Product Name)</th>
+                            <th>ผู้จัดจำหน่าย (Supplier)</th>
+                            <th>หมวดหมู่ (Category)</th>
+                            <th style="width: 110px;">หน่วยนับ</th>
+                            <th style="width: 120px;" class="text-end">ราคา (฿)</th>
+                            <th style="width: 120px;" class="text-center">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productTableBody">
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <div class="spinner-border text-primary me-2" role="status"></div>
+                                กำลังโหลดข้อมูลสินค้าจาก API...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Add / Edit Product -->
+    <div class="modal fade" id="productModal" tabindex="-1" aria-labelledby="productModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content rounded-4 border-0 shadow">
+                <div class="modal-header bg-light border-0 px-4 pt-4 pb-3 rounded-top-4">
+                    <h5 class="modal-title fw-bold" id="productModalLabel">
+                        <i class="bi bi-plus-circle-fill text-success me-2" id="modalHeaderIcon"></i>
+                        <span id="modalHeaderTitle">เพิ่มข้อมูลสินค้าใหม่</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body px-4 py-3">
+                    <!-- Validation Alert inside Modal -->
+                    <div id="modalAlert" class="alert alert-danger d-none fade show rounded-3 mb-3 py-2 px-3 small" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        <span id="modalAlertMsg">กรุณากรอกข้อมูลให้ครบถ้วน</span>
+                    </div>
+
+                    <form id="modalProductForm" novalidate>
+                        <input type="hidden" id="modalProductId" value="">
+
+                        <!-- 1. ชื่อสินค้า -->
+                        <div class="mb-3">
+                            <label for="modalProductName" class="form-label fw-semibold">
+                                ชื่อสินค้า (Product Name) <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-box-seam"></i></span>
+                                <input type="text" class="form-control" id="modalProductName" placeholder="เช่น Smart TV 55 นิ้ว 4K" required minlength="2">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- 2. ผู้จัดจำหน่าย -->
+                            <div class="col-md-6 mb-3">
+                                <label for="modalSupplierId" class="form-label fw-semibold">
+                                    ผู้จัดจำหน่าย (Supplier) <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-building"></i></span>
+                                    <select class="form-select" id="modalSupplierId" required>
+                                        <option value="" disabled selected>กำลังโหลดข้อมูลผู้จัดจำหน่าย...</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- 3. หมวดหมู่สินค้า -->
+                            <div class="col-md-6 mb-3">
+                                <label for="modalCatId" class="form-label fw-semibold">
+                                    หมวดหมู่สินค้า (Category) <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-grid-fill"></i></span>
+                                    <select class="form-select" id="modalCatId" required>
+                                        <option value="" disabled selected>กำลังโหลดหมวดหมู่สินค้า...</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- 4. หน่วยนับ -->
+                            <div class="col-md-6 mb-3">
+                                <label for="modalUnit" class="form-label fw-semibold">
+                                    หน่วยนับ (Unit) <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-hash"></i></span>
+                                    <input type="text" class="form-control" id="modalUnit" placeholder="เช่น กล่อง, ชิ้น, แพ็ค" required>
+                                </div>
+                            </div>
+
+                            <!-- 5. ราคา -->
+                            <div class="col-md-6 mb-3">
+                                <label for="modalPrice" class="form-label fw-semibold">
+                                    ราคาต่อหน่วย (Price ฿) <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">฿</span>
+                                    <input type="number" step="0.01" min="0" class="form-control" id="modalPrice" placeholder="0.00" required>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="modal-footer border-0 px-4 pb-4 pt-2">
+                    <button type="button" class="btn btn-outline-secondary px-4 rounded-3" data-bs-dismiss="modal">
+                        ยกเลิก
+                    </button>
+                    <button type="button" class="btn btn-success px-5 rounded-3 fw-medium" id="btnSaveProduct">
+                        <span id="btnSaveSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                        <span id="btnSaveText">บันทึกข้อมูล</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Confirm Delete -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content rounded-4 border-0 shadow text-center p-4">
+                <div class="modal-body p-0">
+                    <div class="text-danger mb-3">
+                        <i class="bi bi-trash3-fill display-4"></i>
+                    </div>
+                    <h5 class="fw-bold mb-2">ยืนยันการลบสินค้า</h5>
+                    <p class="text-muted small mb-4">
+                        คุณต้องการลบสินค้า <strong id="deleteProductName" class="text-dark">-</strong> รหัส <span id="deleteProductId" class="badge bg-danger">#0</span> หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้
+                    </p>
+                    <div class="d-flex justify-content-center gap-2">
+                        <button type="button" class="btn btn-outline-secondary px-3 rounded-3" data-bs-dismiss="modal">
+                            ยกเลิก
+                        </button>
+                        <button type="button" class="btn btn-danger px-4 rounded-3 fw-medium" id="btnConfirmDelete">
+                            <span id="btnDeleteSpinner" class="spinner-border spinner-border-sm me-1 d-none"></span>
+                            ยืนยันลบ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Reusable Dropdown Loader -->
+    <script src="js/loaddata.js"></script>
+
+    <!-- Application Controller JS -->
+    <script>
+        // API Base Path คำนวณอัตโนมัติรองรับทั้ง Localhost และ Cloud
+        const API_BASE = window.location.pathname.endsWith('/') 
+            ? window.location.pathname + 'api' 
+            : window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) + 'api';
+
+        // Modals & Elements
+        const productModal = new bootstrap.Modal(document.getElementById('productModal'));
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        const liveToastEl = document.getElementById('liveToast');
+        const liveToast = new bootstrap.Toast(liveToastEl, { delay: 3500 });
+
+        const searchInput = document.getElementById('searchInput');
+        const clearSearchBtn = document.getElementById('clearSearchBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const totalCount = document.getElementById('totalCount');
+        const tableBody = document.getElementById('productTableBody');
+
+        let isEditMode = false;
+        let deleteTargetId = null;
+        let searchTimeout = null;
+
+        // แสดง Toast แจ้งเตือน
+        function showToast(message, isSuccess = true) {
+            const toastIcon = document.getElementById('toastIcon');
+            const toastMessage = document.getElementById('toastMessage');
+
+            liveToastEl.className = isSuccess 
+                ? 'toast align-items-center text-white bg-success border-0 shadow-lg rounded-3'
+                : 'toast align-items-center text-white bg-danger border-0 shadow-lg rounded-3';
+
+            toastIcon.className = isSuccess ? 'bi bi-check-circle-fill fs-4 me-2' : 'bi bi-x-circle-fill fs-4 me-2';
+            toastMessage.textContent = message;
+            liveToast.show();
+        }
+
+        // โหลดรายการสินค้าทั้งหมด
+        async function fetchProducts(searchQuery = '') {
+            try {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <div class="spinner-border text-primary me-2 spinner-border-sm" role="status"></div>
+                            กำลังโหลดข้อมูล...
+                        </td>
+                    </tr>
+                `;
+
+                const url = searchQuery 
+                    ? `${API_BASE}/products?search=${encodeURIComponent(searchQuery)}`
+                    : `${API_BASE}/products`;
+
+                const response = await fetch(url, { cache: 'no-store' });
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'ไม่สามารถโหลดข้อมูลสินค้าได้');
+                }
+
+                const products = result.data || [];
+                totalCount.textContent = products.length;
+
+                if (products.length === 0) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <i class="bi bi-inbox fs-1 d-block text-secondary mb-2"></i>
+                                ไม่พบข้อมูลสินค้า${searchQuery ? ` ที่ตรงกับคำว่า "${searchQuery}"` : ''}
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tableBody.innerHTML = products.map((item) => `
+                    <tr>
+                        <td><span class="badge bg-light text-dark border">#${item.id}</span></td>
+                        <td class="fw-semibold text-dark">${escapeHtml(item.name)}</td>
+                        <td><span class="badge badge-sup px-2 py-1 rounded-2">${escapeHtml(item.supplier_name)}</span></td>
+                        <td><span class="badge badge-cat px-2 py-1 rounded-2">${escapeHtml(item.category_name)}</span></td>
+                        <td><span class="text-muted small">${escapeHtml(item.unit || '-')}</span></td>
+                        <td class="text-end fw-bold text-success">฿${parseFloat(item.price || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td class="text-center">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button class="btn btn-outline-primary btn-action me-1" onclick="openEditModal(${item.id})" title="แก้ไข">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-action" onclick="openDeleteModal(${item.id}, '${escapeHtml(item.name)}')" title="ลบ">
+                                    <i class="bi bi-trash3-fill"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+
+            } catch (error) {
+                totalCount.textContent = '0';
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-danger">
+                            <i class="bi bi-exclamation-triangle-fill fs-3 d-block mb-1"></i>
+                            ${error.message}
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // ค้นหาแบบ Debounce
+        searchInput.addEventListener('input', function () {
+            const query = this.value.trim();
+            clearSearchBtn.style.display = query ? 'block' : 'none';
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                fetchProducts(query);
+            }, 300);
+        });
+
+        clearSearchBtn.addEventListener('click', function () {
+            searchInput.value = '';
+            this.style.display = 'none';
+            fetchProducts('');
+        });
+
+        refreshBtn.addEventListener('click', () => {
+            fetchProducts(searchInput.value.trim());
+        });
+
+        // เปิด Modal สำหรับเพิ่มสินค้าใหม่
+        document.getElementById('btnOpenAddModal').addEventListener('click', () => {
+            isEditMode = false;
+            document.getElementById('modalProductId').value = '';
+            document.getElementById('modalProductName').value = '';
+            document.getElementById('modalUnit').value = '';
+            document.getElementById('modalPrice').value = '';
+            document.getElementById('modalAlert').classList.add('d-none');
+
+            document.getElementById('modalHeaderIcon').className = 'bi bi-plus-circle-fill text-success me-2';
+            document.getElementById('modalHeaderTitle').textContent = 'เพิ่มข้อมูลสินค้าใหม่';
+            document.getElementById('btnSaveText').textContent = 'บันทึกข้อมูล';
+
+            loadSelectOptions(`${API_BASE}/suppliers`, 'modalSupplierId', '-- เลือกผู้จัดจำหน่าย --');
+            loadSelectOptions(`${API_BASE}/categories`, 'modalCatId', '-- เลือกหมวดหมู่สินค้า --');
+
+            productModal.show();
+        });
+
+        // เปิด Modal สำหรับแก้ไขสินค้า
+        window.openEditModal = async function (id) {
+            isEditMode = true;
+            document.getElementById('modalAlert').classList.add('d-none');
+            document.getElementById('modalHeaderIcon').className = 'bi bi-pencil-square text-warning me-2';
+            document.getElementById('modalHeaderTitle').textContent = `แก้ไขข้อมูลสินค้า (รหัส #${id})`;
+            document.getElementById('btnSaveText').textContent = 'อัปเดตข้อมูล';
+
+            try {
+                // โหลด Dropdown
+                await Promise.all([
+                    loadSelectOptions(`${API_BASE}/suppliers`, 'modalSupplierId', '-- เลือกผู้จัดจำหน่าย --'),
+                    loadSelectOptions(`${API_BASE}/categories`, 'modalCatId', '-- เลือกหมวดหมู่สินค้า --')
+                ]);
+
+                // ดึงข้อมูลสินค้าเดิม
+                const res = await fetch(`${API_BASE}/products/${id}`, { cache: 'no-store' });
+                const result = await res.json();
+                if (!res.ok || !result.success) throw new Error(result.message);
+
+                const p = result.data;
+                document.getElementById('modalProductId').value = p.id;
+                document.getElementById('modalProductName').value = p.name;
+                document.getElementById('modalSupplierId').value = p.supplier_id;
+                document.getElementById('modalCatId').value = p.category_id;
+                document.getElementById('modalUnit').value = p.unit;
+                document.getElementById('modalPrice').value = p.price;
+
+                productModal.show();
+            } catch (err) {
+                showToast(`เกิดข้อผิดพลาด: ${err.message}`, false);
+            }
+        };
+
+        // บันทึกสินค้า (Insert หรือ Update)
+        document.getElementById('btnSaveProduct').addEventListener('click', async function () {
+            const alertBox = document.getElementById('modalAlert');
+            const alertMsg = document.getElementById('modalAlertMsg');
+            const spinner = document.getElementById('btnSaveSpinner');
+            const btn = this;
+
+            const id = document.getElementById('modalProductId').value;
+            const name = document.getElementById('modalProductName').value.trim();
+            const supplierId = document.getElementById('modalSupplierId').value;
+            const catId = document.getElementById('modalCatId').value;
+            const unit = document.getElementById('modalUnit').value.trim();
+            const price = document.getElementById('modalPrice').value.trim();
+
+            if (!name || !supplierId || !catId || !unit || price === '') {
+                alertMsg.textContent = 'กรุณากรอกข้อมูลให้ครบถ้วนทุกช่องที่มีเครื่องหมาย *';
+                alertBox.classList.remove('d-none');
+                return;
+            }
+
+            alertBox.classList.add('d-none');
+            btn.disabled = true;
+            spinner.classList.remove('d-none');
+
+            const payload = {
+                name: name,
+                supplier_id: supplierId,
+                category_id: catId,
+                unit: unit,
+                price: parseFloat(price)
+            };
+
+            try {
+                const url = isEditMode ? `${API_BASE}/products/${id}` : `${API_BASE}/products`;
+                const method = isEditMode ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    const errorDetails = result.errors 
+                        ? Object.values(result.errors).join(', ') 
+                        : (result.message || 'บันทึกข้อมูลไม่สำเร็จ');
+                    throw new Error(errorDetails);
+                }
+
+                productModal.hide();
+                showToast(isEditMode ? 'อัปเดตข้อมูลสินค้าเรียบร้อยแล้ว!' : 'บันทึกสินค้าใหม่เรียบร้อยแล้ว!');
+                fetchProducts(searchInput.value.trim());
+
+            } catch (err) {
+                alertMsg.textContent = err.message;
+                alertBox.classList.remove('d-none');
+            } finally {
+                btn.disabled = false;
+                spinner.classList.add('d-none');
+            }
+        });
+
+        // เปิด Modal ยืนยันการลบ
+        window.openDeleteModal = function (id, name) {
+            deleteTargetId = id;
+            document.getElementById('deleteProductId').textContent = `#${id}`;
+            document.getElementById('deleteProductName').textContent = name;
+            deleteModal.show();
+        };
+
+        // ยืนยันการลบสินค้า
+        document.getElementById('btnConfirmDelete').addEventListener('click', async function () {
+            if (!deleteTargetId) return;
+            const btn = this;
+            const spinner = document.getElementById('btnDeleteSpinner');
+
+            btn.disabled = true;
+            spinner.classList.remove('d-none');
+
+            try {
+                const response = await fetch(`${API_BASE}/products/${deleteTargetId}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'ไม่สามารถลบสินค้าได้');
+                }
+
+                deleteModal.hide();
+                showToast('ลบข้อมูลสินค้าเรียบร้อยแล้ว!');
+                fetchProducts(searchInput.value.trim());
+
+            } catch (err) {
+                showToast(`เกิดข้อผิดพลาดในการลบ: ${err.message}`, false);
+            } finally {
+                btn.disabled = false;
+                spinner.classList.add('d-none');
+                deleteTargetId = null;
+            }
+        });
+
+        // โหลดข้อมูลเริ่มต้นเมื่อเปิดหน้าเว็บ
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchProducts();
+        });
+    </script>
+</body>
+</html>
